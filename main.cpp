@@ -15,21 +15,23 @@ string encrypt(const string &text, const int s) {
     for (int i = 0; i < text.length(); i++) {
         // apply transformation to each character
         // Encrypt Uppercase letters
-        if (isupper(text[i])) {
+        int letra = text[i];
+        if ((letra >= 65)&&(letra <= 90)) {
             // cout<<"mayus";
-            result += char(int(text[i] + s - 65) % 26 + 65);
-        } else if (islower(text[i])) {
+            result += char((letra + s - 65) % 26 + 65);
+        } else if ((letra >= 97)&&(letra <= 122))  {
             // cout<<"minus";
-            result += char(int(text[i] + s - 97) % 26 + 97);
-        } else if (ispunct(text[i]) || isspace(text[i])) {
+            result += char((letra + s - 97) % 26 + 97);
+        }else if ((letra >= 48)&&(letra <= 57)) {
+            result += char(int(text[i] + 9 - 2 * (int(text[i]) - 48) - 48) % 10 + 48);;
+        }  else {
             result += text[i];
-        } else {
-            result += char(int(text[i] + 9 - 2 * (int(text[i]) - 48) - 48) % 10 + 48);
-        }
+        } 
     }
     // Return the resulting string
     return result;
 }
+
 
 void encriptarArchivo(const filesystem::path &path, const filesystem::path &path2) {
     ofstream salida(path2);
@@ -93,5 +95,10 @@ int main() {
     cout << "Tiempo de ejecucion: " << duration.count() << " ms" << endl;
     string a;
     cin>>a;
+
+    // string prueba = "ABC XYZ abc xyz 0123456789 ./,- áéíóú ÁÉÍÓÚ";
+    // string encriptado = encrypt(prueba, 3);
+    // string desencriptado = encrypt(encriptado, 23);
+    // cout<< encriptado << "\n" << desencriptado;
     return 0;
 }
