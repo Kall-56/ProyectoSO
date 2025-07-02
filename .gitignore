@@ -1,1 +1,5 @@
 /cmake-build-debug
+*.txt
+*.sha
+!CMakeLists.txt
+!original.txt
