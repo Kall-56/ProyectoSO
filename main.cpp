@@ -4,53 +4,74 @@
 #include <chrono>
 #include <fstream>
 #include <thread>
-#include "sha256/sha256.h"
-//necesarios para devc++
+#include <iterator>
+#include "sha25602/sha256.h"
+//NECESARIOS para DevC++
 #include <vector>
 #include <sstream>
 #include <iomanip>
-
-// NECESARIO PARA COPILAR EN DEVC++ "./sha256/sha256.c -std=c++11 -O3 -L./sha256/sha256.h"
-// Tools >> Compiler Options >> Add the following commands when calling the compiler:
 using namespace std;
-vector<long long> times(10);
+
+// NECESARIO PARA COPILAR EN DEVC++ "./sha25602/sha256.c -std=c++11 -O3 -L./sha25602/sha256.h"
+// Tools >> Compiler Options >> Add the following commands when calling the compiler:
+
+vector<long long> times;
+vector<char> original;
 
 string encrypt(const string &text, const int s) {
     string result;
-    // traverse text
     for (int i = 0; i < text.length(); i++) {
         // apply transformation to each character
         // Encrypt Uppercase letters
-        int letra = text[i];
-        if ((letra >= 65)&&(letra <= 90)) {
+        if (int letra = text[i]; (letra >= 65)&&(letra <= 90)) {
             // cout<<"mayus";
-            result += char((letra + s - 65) % 26 + 65);
+            result += static_cast<char>((letra + s - 65) % 26 + 65);
         } else if ((letra >= 97)&&(letra <= 122))  {
             // cout<<"minus";
-            result += char((letra + s - 97) % 26 + 97);
+            result += static_cast<char>((letra + s - 97) % 26 + 97);
         }else if ((letra >= 48)&&(letra <= 57)) {
-            result += char(int(text[i] + 9 - 2 * (int(text[i]) - 48) - 48) % 10 + 48);;
+            result += static_cast<char>(static_cast<int>(text[i] + 9 - 2 * (static_cast<int>(text[i]) - 48) - 48) % 10 + 48);;
         }  else {
             result += text[i];
         } 
     }
-    // Return the resulting string
     return result;
 }
-
 
 void encriptarArchivo(const string &path, const string &path2, const int offset) {
     ofstream salida(path2);
     ifstream entrada(path);
     string aux;
-    // if (!entrada.is_open()) {
-    //     cout << "postivo \n";
-    // }
     while (getline(entrada, aux)) {
         // Output the text from the file
         salida << encrypt(aux, offset) + "\n";
     }
     entrada.close();
+    salida.close();
+}
+
+vector<char> encryptBuffer(const std::vector<char>& buffer, int s) {
+    vector<char> result;
+    result.reserve(buffer.size());
+    for (char c : buffer) {
+        int letra = static_cast<unsigned char>(c);
+        if (letra >= 65 && letra <= 90) {
+            result.push_back((letra + s - 65) % 26 + 65);
+        } else if (letra >= 97 && letra <= 122) {
+            result.push_back((letra + s - 97) % 26 + 97);
+        } else if (letra >= 48 && letra <= 57) {
+            result.push_back((static_cast<int>(c + 9 - 2 * (letra - 48) - 48) % 10 + 48));
+        } else {
+            result.push_back(c);
+        }
+    }
+    return result;
+}
+
+void encriptarArchivoBinario(const std::vector<char>& buffer, const std::string& path2, int offset) {
+    vector<char> encrypted = encryptBuffer(buffer, offset);
+    ofstream salida(path2, ios::binary);
+    salida.write(encrypted.data(), encrypted.size());
     salida.close();
 }
 
@@ -72,7 +93,7 @@ void encriptarArchivo(const string &path, const string &path2, const int offset)
     return c;
 }*/
 
-string sha256Cpp(const string& filename) {
+/*string sha256Cpp(const string& filename) {
     ifstream file(filename, ios::binary);
     if (!file) return "";
 
@@ -95,15 +116,42 @@ string sha256Cpp(const string& filename) {
         result << hex << setw(2) << setfill('0') << (int)hash[i];
     }
     return result.str();
+}*/
+
+string sha256CppFile(const string& filename) {
+    FILE* file = fopen(filename.c_str(), "rb");
+    char buffer[1024];
+    sha256_buff buff{};
+    sha256_init(&buff);
+    while (!feof(file)) {
+        // Hash file by 1 kb chunks, instead of loading into RAM at once
+        const size_t size = fread(buffer, 1, 1024, file);
+        sha256_update(&buff, buffer, size);
+    }
+    char hash[65] = {0};
+    sha256_finalize(&buff);
+    sha256_read_hex(&buff, hash);
+    return hash;
+}
+
+string sha256CppLocal(vector<char> &buffer, const string& path) {
+    {
+        ifstream file(path, ios::binary);
+        buffer = vector<char>(istreambuf_iterator<char>(file), {});
+    }
+    SHA256 buff;
+    buff.update(buffer.data(), buffer.size());
+    return buff.hash();
 }
 
 void procesoHilo(const int i, const string &originalPath, const string &hashOriginal) {
     const auto inicio = chrono::high_resolution_clock::now();
     const string encriptado = to_string(i)+".txt";
-    encriptarArchivo(originalPath, encriptado, 3);
+    //encriptarArchivo(originalPath, encriptado, 3);
+    encriptarArchivoBinario(original, encriptado, 3);
 
-    const string hashEncr = sha256Cpp(encriptado);
-    //9d33fcc7d3de592d985368da616c0f9696f4fbb50779e0f3c733388786720e95
+    const string hashEncr = sha256CppFile(encriptado);
+    // hash: 9d33fcc7d3de592d985368da616c0f9696f4fbb50779e0f3c733388786720e95
 
     ofstream sha(to_string(i)+".sha");
     sha<< hashEncr;
@@ -119,12 +167,13 @@ int main() {
     cout << "Ingrese el numero de copias a crear:";
     cin >> n;
     times.resize(n);
+
     try {
-        const string originalPath = "original.txt";
-        const string shaOrg = sha256Cpp(originalPath);
+        const string shaOrg = sha256CppLocal(original,"original.txt");
+
         vector<thread> threads;
         for (int i = 1; i <= n; i++) {
-            threads.emplace_back(procesoHilo, i, originalPath, shaOrg);
+            threads.emplace_back(procesoHilo, i, "original.txt", shaOrg);
         }
         for (auto &t : threads) {
             t.join();

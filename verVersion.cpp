@@ -24,7 +24,7 @@ long getCPPStandard()
 #endif
 }
 
-int main()
+int main2()
 {
     long standard = getCPPStandard();
 
