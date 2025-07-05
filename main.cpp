@@ -1,3 +1,8 @@
+// Authores: Alex Monsalve CI: 30 407 958
+//           Manuel Martinez CI: 30 845 197
+// NECESARIO PARA COPILAR EN DEVC++ "./sha25602/sha256.c -std=c++11 -O3 -L./sha25602/sha256.h"
+// Tools >> Compiler Options >> Add the following commands when calling the compiler:
+
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -7,16 +12,40 @@
 #include <iterator>
 #include <vector>
 #include <iomanip>
+#include <ctime>
 #include "sha25602/sha256.h"
 using namespace std;
-
-// NECESARIO PARA COPILAR EN DEVC++ "./sha25602/sha256.c -std=c++11 -O3 -L./sha25602/sha256.h"
-// Tools >> Compiler Options >> Add the following commands when calling the compiler:
 
 vector<char> original;
 vector<bool> hashValidation;
 vector<bool> originalValidation;
 vector<long long> times;
+
+void imprimirTiempo(const long long &microsegundos) {
+    using namespace std::chrono;
+    const long long total_milliseconds = microsegundos / 1000;
+    const int hours = static_cast<int>(total_milliseconds / 3600000);
+    const int minutes = static_cast<int>((total_milliseconds % 3600000) / 60000);
+    const int seconds = static_cast<int>((total_milliseconds % 60000) / 1000);
+    const int millis = static_cast<int>(total_milliseconds % 1000);
+
+    cout << setfill('0') << setw(2) << hours << ":"
+              << setw(2) << minutes << ":"
+              << setw(2) << seconds << "."
+              << setw(3) << millis << endl;
+}
+
+void imprimirHoraActual() {
+    using namespace std::chrono;
+    const auto ahora = system_clock::now();
+    const auto tiempo = system_clock::to_time_t(ahora);
+    const auto ms = duration_cast<milliseconds>(ahora.time_since_epoch()) % 1000;
+    const std::tm* local_tm = std::localtime(&tiempo);
+
+    char buffer[16];
+    std::strftime(buffer, sizeof(buffer), "%H:%M:%S", local_tm);
+    std::cout << buffer << "." << std::setfill('0') << std::setw(3) << ms.count() << std::endl;
+}
 
 vector<char> leerArchivo(const string &path) {
     vector<char> vectorBuffer;
@@ -141,18 +170,16 @@ void procesoHilo(const int i, const string &hashOriginal) {
     times[i] = duration.count();
 }
 
-int mainParalelo() {
-    cout << "---[Ejecutando hilos paralelos]---" << endl;
-    int n = 1;
-    cout << "Ingrese el numero de copias a crear: ";
-    cin >> n;
-    cout << "----------------------------------------" << endl;
+long long mainParalelo(const int n) {
+    cout << "---|   PROCESO OPTIMIZADO   |---" << endl;
     times.resize(n);
     hashValidation.resize(n);
     originalValidation.resize(n);
+    const string shaOrg = sha256CppLocal(original);
+    const auto inicio = chrono::high_resolution_clock::now();
+    cout << "TI: ";
+    imprimirHoraActual();
     try {
-        original = leerArchivo("original.txt");
-        const string shaOrg = sha256CppLocal(original);
         vector<thread> threads;
         for (int i = 0; i < n; i++) {
             threads.emplace_back(procesoHilo,i,shaOrg);
@@ -164,16 +191,24 @@ int mainParalelo() {
         cerr << e.what() << endl;
         return 1;
     }
+    const auto fin = chrono::high_resolution_clock::now();
+    const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
     long long timesAdded = 0;
     for (int i = 0; i < n; i++) {
         timesAdded = timesAdded + times[i];
-        cout << "Tiempo de ejecucion del hilo " << (i+1) << ": " << times[i]/1000 << " ms" << endl;
+        cout << "Tiempo " << (i+1) << ":    ";
+        imprimirTiempo(times[i]);
         cout << "Hash encriptados iguales?: " << boolalpha << hashValidation[i] << endl;
         cout << "Hash desencriptado igual a hash original?: " << boolalpha << originalValidation[i] << endl;
         cout << "----------------------------------------" << endl;
     }
-    cout << "Tiempo promedio de ejecucion: " << (timesAdded/n)/1000 << " ms" << endl;
-    return 0;
+    cout << "TFIN: ";
+    imprimirHoraActual();
+    cout << "TPPA: ";
+    imprimirTiempo(timesAdded/n);
+    cout << "TT: ";
+    imprimirTiempo(duration.count());
+    return duration.count();
 }
 
 void procesoHiloSecuencial(const int i, const string &hashOriginal) {
@@ -206,22 +241,20 @@ void procesoHiloSecuencial(const int i, const string &hashOriginal) {
 
     const auto fin = chrono::high_resolution_clock::now();
     const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
-    cout << "Tiempo de ejecucion del hilo " << (i+1) << ": " << duration.count()/1000 << " ms" << endl;
+    cout << "Tiempo " << (i+1) << ":    ";
+    imprimirTiempo(duration.count());
     cout << "----------------------------------------" << endl;
     times[i] = duration.count();
 }
 
-int mainSecuencial() {
-    cout << "---[Ejecutando hilos secuenciales]---" << endl;
-    int n = 1;
-    cout << "Ingrese el numero de copias a crear: ";
-    cin >> n;
-    cout << "----------------------------------------" << endl;
+long long mainSecuencial(const int n) {
+    cout << "---|   PROCESO BASE  |---" << endl;
     times.resize(n);
+    const string shaOrg = sha256CppLocal(original);
     const auto inicio = chrono::high_resolution_clock::now();
+    cout << "TI: ";
+    imprimirHoraActual();
     try {
-        original = leerArchivo("original.txt");
-        const string shaOrg = sha256CppLocal(original);
         for (int i = 0; i < n; i++) {
             thread t(procesoHiloSecuencial, i, shaOrg);
             t.join();
@@ -232,26 +265,43 @@ int mainSecuencial() {
     }
     const auto fin = chrono::high_resolution_clock::now();
     const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
+    cout << "TF: ";
+    imprimirHoraActual();
     long long timesAdded = 0;
     for (int i = 0; i < n; i++) {
         timesAdded = timesAdded + times[i];
     }
-    cout << "Tiempo promedio de ejecucion: " << (timesAdded/n)/1000 << " ms" << endl;
-    cout << "Tiempo Total de ejecucion: " << duration.count()/1000 << " ms" << endl;
-    return 0;
+    cout << "TPPA: ";
+    imprimirTiempo(timesAdded/n);
+    cout << "TT: ";
+    imprimirTiempo(duration.count());
+    return duration.count();
 }
 
 int main() {
-    int o = 1;
-    cout << "---|   Ejecucion secuencial [0]   |---" << endl;
-    cout << "---| Ejecucion paralela [Any key] |---" << endl;
-    cout << "Ingrese el modo de ejecucion: ";
-    cin >> o;
-    cout << "----------------------------------------" << endl;
-    if (o == 0) {
-        mainSecuencial();
-    } else {
-        mainParalelo();
+    original = leerArchivo("original.txt");
+    int n = 0;
+    while (n <= 0) {
+        cout << " [Ingrese el numero de copias a crear]: ";
+        cin >> n;
+        if (cin.fail()) {
+            cout << "Entrada invalida. Intente de nuevo." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
     }
+    cout << "----------------------------------------" << endl;
+    const auto inicio = chrono::high_resolution_clock::now();
+
+    const auto TS = mainSecuencial(n);
+    const auto TP = mainParalelo(n);
+
+    const auto fin = chrono::high_resolution_clock::now();
+    const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
+    cout << "----------------------------------------" << endl;
+    cout << "DF: ";
+    imprimirTiempo(duration.count());
+    const double mejora = (static_cast<double>(TS - TP) / TS) * 100.0;
+    cout << "PM: " << mejora << "%" << endl;
     return 0;
 }
