@@ -5,10 +5,9 @@
 #include <fstream>
 #include <thread>
 #include <iterator>
-#include "sha25602/sha256.h"
-//NECESARIOS para DevC++
 #include <vector>
 #include <iomanip>
+#include "sha25602/sha256.h"
 using namespace std;
 
 // NECESARIO PARA COPILAR EN DEVC++ "./sha25602/sha256.c -std=c++11 -O3 -L./sha25602/sha256.h"
@@ -29,7 +28,7 @@ vector<char> leerArchivo(const string &path) {
     return vectorBuffer;
 }
 
-/*string encrypt(const string &text, const int s) {
+string encrypt(const string &text, const int s) {
     string result;
     for (int i = 0; i < text.length(); i++) {
         // Encrypt Uppercase letters
@@ -47,9 +46,9 @@ vector<char> leerArchivo(const string &path) {
         } 
     }
     return result;
-}*/
+}
 
-vector<char> encryptBuffer(const std::vector<char>& buffer, int s) {
+vector<char> encryptBuffer(const std::vector<char>& buffer, const int s) {
     vector<char> result;
     result.reserve(buffer.size());
     for (char c : buffer) {
@@ -67,7 +66,7 @@ vector<char> encryptBuffer(const std::vector<char>& buffer, int s) {
     return result;
 }
 
-/*void encriptarArchivoFile(const string &path, const string &path2, const int offset) {
+void encriptarArchivoFile(const string &path, const string &path2, const int offset) {
     ofstream salida(path2);
     ifstream entrada(path);
     string aux;
@@ -77,9 +76,9 @@ vector<char> encryptBuffer(const std::vector<char>& buffer, int s) {
     }
     entrada.close();
     salida.close();
-}*/
+}
 
-vector<char> encriptarArchivoBinario(const std::vector<char>& buffer, const std::string& path2, int offset) {
+vector<char> encriptarArchivoBinario(const std::vector<char>& buffer, const std::string& path2, const int offset) {
     vector<char> encrypted = encryptBuffer(buffer, offset);
     ofstream salida(path2, ios::binary);
     salida.write(encrypted.data(), encrypted.size());
@@ -121,7 +120,7 @@ void procesoHilo(const int i, const string &hashOriginal) {
     ofstream sha(to_string(i+1)+".sha");
     sha<< hashEncr;
     sha.close();
-    string hashVerif = sha256CppLocal(encriptadoI); // sha256CppFile(encriptado); Lee del archivo, no se si Omar solo quiere eso
+    const string hashVerif = sha256CppLocal(encriptadoI); // sha256CppFile(encriptado); Lee del archivo, Omar querra esto?
     if (hashEncr == hashVerif) {
         hashValidation[i] = true;
     } else {
@@ -129,8 +128,8 @@ void procesoHilo(const int i, const string &hashOriginal) {
     }
 
     const string desencriptado = to_string(i+1)+"2.txt";
-    encriptarArchivoBinario(encriptadoI,desencriptado,23); // Aqui tambien podria sacar el vector pero again no se si quiere eso
-    const string hashVerif2 = sha256CppFile(desencriptado);
+    const vector<char> desencriptadoI = encriptarArchivoBinario(encriptadoI,desencriptado,23);
+    const string hashVerif2 = sha256CppLocal(desencriptadoI);
     if (hashOriginal == hashVerif2) {
         originalValidation[i] = true;
     } else {
@@ -142,9 +141,10 @@ void procesoHilo(const int i, const string &hashOriginal) {
     times[i] = duration.count();
 }
 
-int main() {
+int mainParalelo() {
+    cout << "---[Ejecutando hilos paralelos]---" << endl;
     int n = 1;
-    cout << "Ingrese el numero de copias a crear:";
+    cout << "Ingrese el numero de copias a crear: ";
     cin >> n;
     cout << "----------------------------------------" << endl;
     times.resize(n);
@@ -173,5 +173,85 @@ int main() {
         cout << "----------------------------------------" << endl;
     }
     cout << "Tiempo promedio de ejecucion: " << (timesAdded/n)/1000 << " ms" << endl;
+    return 0;
+}
+
+void procesoHiloSecuencial(const int i, const string &hashOriginal) {
+    const auto inicio = chrono::high_resolution_clock::now();
+
+    const string encriptado = to_string(i+1)+".txt";
+    encriptarArchivoFile("original.txt",encriptado,3);
+
+    const string hashEncr = sha256CppFile(encriptado);
+    // hash: 9d33fcc7d3de592d985368da616c0f9696f4fbb50779e0f3c733388786720e95
+
+    ofstream sha(to_string(i+1)+".sha");
+    sha<< hashEncr;
+    sha.close();
+    const string hashVerif = sha256CppFile(encriptado);
+    if (hashEncr == hashVerif) {
+        cout << "Hash encriptados iguales?: " << boolalpha << true << endl;
+    } else {
+        cout << "Hash encriptados iguales?: " << boolalpha << false << endl;
+    }
+
+    const string desencriptado = to_string(i+1)+"2.txt";
+    encriptarArchivoFile(encriptado,desencriptado,23);
+    const string hashVerif2 = sha256CppFile(desencriptado);
+    if (hashOriginal == hashVerif2) {
+        cout << "Hash desencriptado igual a hash original?: " << boolalpha << true << endl;
+    } else {
+        cout << "Hash desencriptado igual a hash original?: " << boolalpha << false << endl;
+    }
+
+    const auto fin = chrono::high_resolution_clock::now();
+    const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
+    cout << "Tiempo de ejecucion del hilo " << (i+1) << ": " << duration.count()/1000 << " ms" << endl;
+    cout << "----------------------------------------" << endl;
+    times[i] = duration.count();
+}
+
+int mainSecuencial() {
+    cout << "---[Ejecutando hilos secuenciales]---" << endl;
+    int n = 1;
+    cout << "Ingrese el numero de copias a crear: ";
+    cin >> n;
+    cout << "----------------------------------------" << endl;
+    times.resize(n);
+    const auto inicio = chrono::high_resolution_clock::now();
+    try {
+        original = leerArchivo("original.txt");
+        const string shaOrg = sha256CppLocal(original);
+        for (int i = 0; i < n; i++) {
+            thread t(procesoHiloSecuencial, i, shaOrg);
+            t.join();
+        }
+    } catch (const runtime_error &e) {
+        cerr << e.what() << endl;
+        return 1;
+    }
+    const auto fin = chrono::high_resolution_clock::now();
+    const auto duration = chrono::duration_cast<chrono::microseconds>(fin - inicio);
+    long long timesAdded = 0;
+    for (int i = 0; i < n; i++) {
+        timesAdded = timesAdded + times[i];
+    }
+    cout << "Tiempo promedio de ejecucion: " << (timesAdded/n)/1000 << " ms" << endl;
+    cout << "Tiempo Total de ejecucion: " << duration.count()/1000 << " ms" << endl;
+    return 0;
+}
+
+int main() {
+    int o = 1;
+    cout << "---|   Ejecucion secuencial [0]   |---" << endl;
+    cout << "---| Ejecucion paralela [Any key] |---" << endl;
+    cout << "Ingrese el modo de ejecucion: ";
+    cin >> o;
+    cout << "----------------------------------------" << endl;
+    if (o == 0) {
+        mainSecuencial();
+    } else {
+        mainParalelo();
+    }
     return 0;
 }
